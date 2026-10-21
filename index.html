@@ -321,6 +321,16 @@
   }
   dialog .close { position: absolute; top: 12px; right: 12px; }
   #fx { position: fixed; inset: 0; z-index: 80; pointer-events: none; display: none; }
+  .fab {
+    position: fixed; right: 22px; bottom: 22px; z-index: 50;
+    width: 44px; height: 44px; border-radius: 14px; display: grid; place-items: center;
+    border: 1px solid var(--line2); background: var(--card); cursor: pointer;
+    box-shadow: var(--shadow-lg); color: var(--ink2);
+    opacity: 0; transform: translateY(12px); pointer-events: none;
+    transition: opacity .2s, transform .2s, color .16s, border-color .16s;
+  }
+  .fab.on { opacity: 1; transform: none; pointer-events: auto; }
+  .fab:hover { color: var(--accent); border-color: var(--accent); }
 
   /* ============ responsive ============ */
   @media (max-width: 860px) {
@@ -490,6 +500,9 @@
 </main>
 
 <div class="toast" id="toast" role="status" aria-live="polite"></div>
+<button class="fab" id="fab" title="回到顶部" aria-label="回到顶部">
+  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M12 19V5"/><path d="M6 11l6-6 6 6"/></svg>
+</button>
 <canvas id="fx" aria-hidden="true"></canvas>
 
 <dialog id="exportDlg">
@@ -1114,6 +1127,11 @@ function celebrate(x, y) {
 }
 
 /* ==================== 初始化 ==================== */
+$('#fab').addEventListener('click', () => window.scrollTo({ top: 0, behavior: 'smooth' }));
+addEventListener('scroll', () => {
+  $('#fab').classList.toggle('on', window.scrollY > 700);
+}, { passive: true });
+
 $('#selCat').innerHTML = '<option value="all">全部分类</option>' +
   CATS.map(c => {
     const s = catStat(c);
