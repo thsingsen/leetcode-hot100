@@ -315,6 +315,16 @@
   }
   .empty b { display: block; color: var(--ink); font-size: 15px; margin-bottom: 6px; }
 
+  .warn {
+    display: flex; align-items: flex-start; gap: 10px; margin-top: 14px;
+    padding: 12px 15px; border-radius: 14px; font-size: 12.5px; line-height: 1.7;
+    color: var(--med); background: var(--med-bg);
+    border: 1px solid color-mix(in srgb, var(--med) 34%, transparent);
+  }
+  .warn[hidden] { display: none; }
+  .warn svg { flex: none; margin-top: 2px; }
+  .warn b { color: var(--med); font-weight: 700; }
+
   /* ============ footer ============ */
   footer {
     margin-top: 44px; padding-top: 20px; border-top: 1px solid var(--line);
@@ -455,6 +465,11 @@
       <div class="center"><b id="ringNum">0</b><span>已刷 / 100</span></div>
     </div>
   </section>
+
+  <div class="warn" id="storageWarn" hidden>
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3.5l9 16H3z"/><path d="M12 9.5v4.5"/><path d="M12 17.2h.01"/></svg>
+    <span>当前浏览器不允许写入本地存储（可能开了无痕窗口，或禁用了站点数据）。<b>这批打卡只在本次页面有效，关掉就会丢</b> —— 请用普通窗口打开；实在要用，请用「进度管理 → 下载备份 JSON」留底。</span>
+  </div>
 
   <section class="stats">
     <div class="stat done">
@@ -686,8 +701,16 @@ const $$ = (s, root = document) => Array.from(root.querySelectorAll(s));
 const esc = s => String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const pct = (a, b) => b ? Math.round(a / b * 100) : 0;
 
+let storageOK = true;
+function showStorageWarn() {
+  if (!storageOK) return;
+  storageOK = false;
+  const w = $('#storageWarn');
+  if (w) w.hidden = false;
+}
 function store(key, val) {
-  try { localStorage.setItem(key, JSON.stringify(val)); } catch (e) { /* 隐私模式下忽略 */ }
+  try { localStorage.setItem(key, JSON.stringify(val)); }
+  catch (e) { showStorageWarn(); }        // 无痕/禁用站点数据时写入会抛，必须让用户看见
 }
 function load(key, fallback) {
   try {
@@ -695,6 +718,11 @@ function load(key, fallback) {
     return raw ? (JSON.parse(raw) ?? fallback) : fallback;
   } catch (e) { return fallback; }
 }
+// 开页先探一次真实可用性，别等用户打了十个卡才发现存不进去
+try {
+  localStorage.setItem('lc-hot100-v2:probe', '1');
+  localStorage.removeItem('lc-hot100-v2:probe');
+} catch (e) { showStorageWarn(); }
 function sanitize(obj) {
   const out = {};
   if (!obj || typeof obj !== 'object') return out;
