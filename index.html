@@ -214,12 +214,44 @@
   .seg button:hover { color: var(--ink); }
   .seg button[aria-pressed="true"] { background: var(--ink); color: var(--bg); font-weight: 600; }
   .seg button .cnt { font-size: 11px; opacity: .65; font-variant-numeric: tabular-nums; }
-  select.sel {
-    height: 38px; padding: 0 30px 0 12px; border-radius: 11px; border: 1px solid var(--line2);
-    background: var(--card) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%238b93a7' stroke-width='3'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E") no-repeat right 10px center;
-    color: var(--ink); font-size: 13px; appearance: none; cursor: pointer; outline: none;
+  /* 自定义下拉（原生 select 的弹层无法样式化，Windows 上是系统灰白列表） */
+  .dd { position: relative; }
+  .dd-btn {
+    height: 38px; padding: 0 10px 0 12px; border-radius: 11px; border: 1px solid var(--line2);
+    background: var(--card); color: var(--ink); font-size: 13px; cursor: pointer;
+    display: inline-flex; align-items: center; gap: 8px;
+    transition: border-color .16s, box-shadow .16s;
   }
-  select.sel:focus { border-color: var(--accent); box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 18%, transparent); }
+  .dd-btn:hover { border-color: color-mix(in srgb, var(--accent) 45%, var(--line2)); }
+  .dd.open .dd-btn { border-color: var(--accent); box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 16%, transparent); }
+  .dd-btn .dd-ico { color: var(--ink3); transition: transform .18s, color .16s; flex: none; }
+  .dd.open .dd-btn .dd-ico { transform: rotate(180deg); color: var(--accent); }
+  .dd-panel {
+    position: absolute; left: 0; top: calc(100% + 8px); z-index: 60;
+    min-width: 196px; max-width: calc(100vw - 34px); max-height: 328px; overflow-y: auto;
+    padding: 6px; background: var(--card); border: 1px solid var(--line);
+    border-radius: 14px; box-shadow: var(--shadow-lg);
+    display: none; animation: ddIn .14s ease-out;
+  }
+  .dd.p-right .dd-panel { left: auto; right: 0; }
+  .dd.open .dd-panel { display: block; }
+  @keyframes ddIn { from { opacity: 0; transform: translateY(-4px); } to { opacity: 1; transform: none; } }
+  .dd-opt {
+    width: 100%; display: flex; align-items: center; gap: 8px; height: 34px; padding: 0 9px;
+    border: 0; background: transparent; border-radius: 9px; font-size: 13px; color: var(--ink2);
+    cursor: pointer; text-align: left; transition: background .12s, color .12s;
+  }
+  .dd-opt + .dd-opt { margin-top: 1px; }
+  .dd-opt:hover, .dd-opt:focus-visible { background: var(--card2); color: var(--ink); outline: none; }
+  .dd-opt.on { color: var(--accent); font-weight: 600; background: color-mix(in srgb, var(--accent) 10%, transparent); }
+  .dd-name { flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .dd-meta { font-size: 11.5px; color: var(--ink3); font-variant-numeric: tabular-nums; }
+  .dd-opt.on .dd-meta { color: var(--accent); opacity: .75; }
+  .dd-check { width: 13px; height: 13px; flex: none; opacity: 0; color: var(--accent); }
+  .dd-opt.on .dd-check { opacity: 1; }
+  .dd-panel::-webkit-scrollbar { width: 8px; }
+  .dd-panel::-webkit-scrollbar-thumb { background: var(--line2); border-radius: 8px; }
+  .dd-panel::-webkit-scrollbar-track { background: transparent; }
   .toolbar .grow { margin-left: auto; display: flex; align-items: center; gap: 8px; font-size: 12px; color: var(--ink3); }
 
   /* ============ category section ============ */
@@ -466,18 +498,9 @@
       <button data-f="0" aria-pressed="false">未刷 <span class="cnt" id="c0">0</span></button>
       <button data-f="2" aria-pressed="false">需复习 <span class="cnt" id="c2">0</span></button>
     </div>
-    <select class="sel" id="selCat" aria-label="按分类筛选"><option value="all">全部分类</option></select>
-    <select class="sel" id="selDiff" aria-label="按难度筛选">
-      <option value="0">全部难度</option>
-      <option value="1">简单</option>
-      <option value="2">中等</option>
-      <option value="3">困难</option>
-    </select>
-    <select class="sel" id="selSort" aria-label="排序方式">
-      <option value="list">题单顺序</option>
-      <option value="id">按题号</option>
-      <option value="diff">难度优先</option>
-    </select>
+    <div class="dd" id="ddCat" data-dd="cat"></div>
+    <div class="dd p-right" id="ddDiff" data-dd="diff"></div>
+    <div class="dd p-right" id="ddSort" data-dd="sort"></div>
     <div class="grow"><span id="resultCount">100 题</span><span>·</span><span>点状态标签切换</span></div>
   </div>
 
@@ -881,6 +904,7 @@ function setStatus(id, st, opts = {}) {
 }
 
 document.addEventListener('click', e => {
+  if (!e.target.closest('.dd')) closeAllDD();      // 点空白处收起下拉
   const btn = e.target.closest('[data-act="cycle"]');
   if (btn) {
     const id = Number(btn.dataset.id);
@@ -904,8 +928,8 @@ document.addEventListener('click', e => {
   if (e.target.id === 'clearAll') {
     view.status = 'all'; view.diff = 0; view.cat = 'all'; view.q = '';
     $('#q').value = '';
-    $('#selCat').value = 'all';
-    $('#selDiff').value = '0';
+    ddCat.set('all', true);
+    ddDiff.set('0', true);
     syncSeg();
     render();
   }
@@ -924,9 +948,121 @@ $('#segStatus').addEventListener('click', e => {
   saveUi();
   render();
 });
-$('#selCat').addEventListener('change', e => { view.cat = e.target.value; ui.cat = view.cat; saveUi(); render(); });
-$('#selDiff').addEventListener('change', e => { view.diff = Number(e.target.value); ui.diff = view.diff; saveUi(); render(); });
-$('#selSort').addEventListener('change', e => { view.sort = e.target.value; ui.sort = view.sort; saveUi(); render(); });
+/* ==================== 自定义下拉（替代原生 select） ==================== */
+const dds = [];
+function closeAllDD(except) { dds.forEach(d => { if (d !== except) d.close(); }); }
+
+function createDD(host, cfg) {
+  host.innerHTML = `
+    <button class="dd-btn" type="button" aria-haspopup="listbox" aria-expanded="false" aria-label="${esc(cfg.label)}">
+      <span class="dd-cur"></span>
+      <svg class="dd-ico" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg>
+    </button>
+    <div class="dd-panel" role="listbox"></div>`;
+  const btn = host.querySelector('.dd-btn');
+  const cur = host.querySelector('.dd-cur');
+  const panel = host.querySelector('.dd-panel');
+  let val = String(cfg.value);
+
+  function paint() {
+    const its = cfg.items();
+    const found = its.find(i => String(i.value) === val);
+    cur.textContent = found ? found.label : '';
+    panel.innerHTML = its.map(i => {
+      const on = String(i.value) === val;
+      return `<button class="dd-opt${on ? ' on' : ''}" type="button" role="option" aria-selected="${on}" data-v="${esc(i.value)}">
+        <span class="dd-name">${esc(i.label)}</span>
+        ${i.meta ? `<span class="dd-meta">${esc(i.meta)}</span>` : ''}
+        <svg class="dd-check" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5l4.5 4.5L19 7"/></svg>
+      </button>`;
+    }).join('');
+  }
+  function set(v, silent) {
+    val = String(v);
+    paint();
+    if (!silent) cfg.onChange(val);
+  }
+  function open() {
+    closeAllDD(api);
+    paint();
+    host.classList.add('open');
+    btn.setAttribute('aria-expanded', 'true');
+    const on = panel.querySelector('.dd-opt.on');
+    if (on) on.scrollIntoView({ block: 'nearest' });
+  }
+  function close() {
+    host.classList.remove('open');
+    btn.setAttribute('aria-expanded', 'false');
+  }
+
+  btn.addEventListener('click', e => {
+    e.stopPropagation();
+    if (host.classList.contains('open')) close(); else open();
+  });
+  panel.addEventListener('click', e => {
+    const opt = e.target.closest('.dd-opt');
+    if (!opt) return;
+    set(opt.dataset.v);
+    close();
+    btn.focus();
+  });
+  host.addEventListener('keydown', e => {
+    if (e.key === 'Escape') { close(); btn.focus(); return; }
+    if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+      e.preventDefault();
+      if (!host.classList.contains('open')) { open(); return; }
+      const opts = Array.from(panel.querySelectorAll('.dd-opt'));
+      let i = opts.indexOf(document.activeElement);
+      i = e.key === 'ArrowDown' ? Math.min(opts.length - 1, i + 1) : Math.max(0, i - 1);
+      if (opts[i]) opts[i].focus();
+    } else if (e.key === 'Enter' || e.key === ' ') {
+      const a = document.activeElement;
+      if (a && a.classList.contains('dd-opt')) {
+        e.preventDefault();
+        set(a.dataset.v);
+        close();
+        btn.focus();
+      }
+    }
+  });
+
+  const api = { set, open, close };
+  dds.push(api);
+  paint();
+  return api;
+}
+
+const ddCat = createDD($('#ddCat'), {
+  label: '按分类筛选',
+  value: view.cat,
+  items: () => [{ value: 'all', label: '全部分类', meta: TOTAL + ' 题' }].concat(
+    CATS.map(c => { const s = catStat(c); return { value: c, label: c, meta: `${s.done}/${s.total}` }; })
+  ),
+  onChange: v => { view.cat = v; ui.cat = v; saveUi(); render(); }
+});
+
+const ddDiff = createDD($('#ddDiff'), {
+  label: '按难度筛选',
+  value: String(view.diff),
+  items: () => [
+    { value: '0', label: '全部难度' },
+    { value: '1', label: '简单' },
+    { value: '2', label: '中等' },
+    { value: '3', label: '困难' }
+  ],
+  onChange: v => { view.diff = Number(v); ui.diff = view.diff; saveUi(); render(); }
+});
+
+const ddSort = createDD($('#ddSort'), {
+  label: '排序方式',
+  value: view.sort,
+  items: () => [
+    { value: 'list', label: '题单顺序' },
+    { value: 'id', label: '按题号' },
+    { value: 'diff', label: '难度优先' }
+  ],
+  onChange: v => { view.sort = v; ui.sort = v; saveUi(); render(); }
+});
 
 let searchTimer;
 $('#q').addEventListener('input', e => {
@@ -1132,14 +1268,6 @@ addEventListener('scroll', () => {
   $('#fab').classList.toggle('on', window.scrollY > 700);
 }, { passive: true });
 
-$('#selCat').innerHTML = '<option value="all">全部分类</option>' +
-  CATS.map(c => {
-    const s = catStat(c);
-    return `<option value="${esc(c)}">${esc(c)}（${s.done}/${s.total}）</option>`;
-  }).join('');
-$('#selCat').value = view.cat;
-$('#selDiff').value = String(view.diff);
-$('#selSort').value = view.sort;
 syncSeg();
 render();
 
